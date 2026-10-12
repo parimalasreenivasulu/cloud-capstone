@@ -6,3 +6,4 @@ monitoring/secrets/*
 *.key
 __pycache__/
 .pytest_cache/
+cloudflared.exe
