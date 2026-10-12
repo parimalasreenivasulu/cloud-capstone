@@ -4,8 +4,7 @@ A containerized Flask service deployed to a cloud VM (AWS EC2, or DigitalOcean) 
 monitoring stack: **Prometheus, Grafana, Alertmanager, Blackbox uptime probes, node-exporter**.
 Deployment is automated end to end with GitHub Actions.
 
-**Live application URL:** `http://<YOUR-PUBLIC-IP>`  <!-- fill in after deploying -->
-**Grafana dashboard:** `http://<YOUR-PUBLIC-IP>/grafana/`  (user `admin`, password from your secret)
+**Deployment status:** Not yet deployed to a cloud provider (no cloud account access at submission time). The repo contains the complete pipeline and validated configs (see `docs/validation-output.txt`), and runs locally with `docker compose up`.
 
 ## Architecture
 
