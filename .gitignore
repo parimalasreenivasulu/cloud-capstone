@@ -1,0 +1,8 @@
+.env
+monitoring/alertmanager.yml
+monitoring/secrets/*
+!monitoring/secrets/.gitkeep
+*.pem
+*.key
+__pycache__/
+.pytest_cache/

@@ -1,0 +1,18 @@
+rule_files: [../monitoring/alerts.yml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public",instance="http://203.0.113.10/health"}'
+        values: '1 1 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: EndpointDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: blackbox-public, instance: "http://203.0.113.10/health"}
+            exp_annotations:
+              summary: "Health check failing: http://203.0.113.10/health"
+              description: "The uptime probe for http://203.0.113.10/health has failed for over 1 minute."
+      - eval_time: 1m
+        alertname: EndpointDown
+        exp_alerts: []

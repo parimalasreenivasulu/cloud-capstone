@@ -1,0 +1,44 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs: [{targets: ["localhost:9090"]}]
+
+  - job_name: app
+    metrics_path: /metrics
+    static_configs: [{targets: ["app:8000"]}]
+
+  - job_name: node
+    static_configs: [{targets: ["node-exporter:9100"]}]
+
+  # Uptime probes from inside the stack (app and nginx health endpoints)
+  - job_name: blackbox-internal
+    metrics_path: /probe
+    params: {module: [http_2xx]}
+    static_configs:
+      - targets: ["http://app:8000/health", "http://nginx/health"]
+    relabel_configs:
+      - {source_labels: [__address__], target_label: __param_target}
+      - {source_labels: [__param_target], target_label: instance}
+      - {target_label: __address__, replacement: "blackbox:9115"}
+
+  # Uptime probe of the PUBLIC URL (target file written by scripts/render-config.sh from PUBLIC_URL)
+  - job_name: blackbox-public
+    metrics_path: /probe
+    params: {module: [http_2xx]}
+    file_sd_configs:
+      - files: ["/etc/prometheus/targets/public.yml"]
+    relabel_configs:
+      - {source_labels: [__address__], target_label: __param_target}
+      - {source_labels: [__param_target], target_label: instance}
+      - {target_label: __address__, replacement: "blackbox:9115"}

@@ -1,0 +1,35 @@
+#cloud-config
+# Bootstraps a fresh Ubuntu 24.04 VM (works as AWS EC2 user-data or DigitalOcean user-data).
+# SSH_PUBLIC_KEY_PLACEHOLDER is replaced by infra/aws-ec2-launch.sh (or by hand for DigitalOcean).
+package_update: true
+packages: [docker.io, docker-compose-v2, ufw, fail2ban, rsync, curl, unattended-upgrades]
+
+users:
+  - name: deploy
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+    ssh_authorized_keys:
+      - SSH_PUBLIC_KEY_PLACEHOLDER
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/00-hardening.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      AllowUsers deploy
+      MaxAuthTries 3
+      X11Forwarding no
+
+runcmd:
+  - systemctl enable --now docker fail2ban
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw limit 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+  - systemctl reload ssh
+  - mkdir -p /home/deploy/capstone && chown deploy:deploy /home/deploy/capstone

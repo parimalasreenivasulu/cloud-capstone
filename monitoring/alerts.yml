@@ -1,0 +1,52 @@
+groups:
+  - name: availability
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.job }} on {{ $labels.instance }} is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }} for over 1 minute."
+
+      - alert: EndpointDown
+        expr: probe_success == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "Health check failing: {{ $labels.instance }}"
+          description: "The uptime probe for {{ $labels.instance }} has failed for over 1 minute."
+
+  - name: application
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(app_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(app_http_requests_total[5m])), 0.001) > 0.05
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 5% of requests are returning 5xx"
+
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum by (le) (rate(app_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "p95 latency above 1s for 5 minutes"
+
+  - name: host
+    rules:
+      - alert: HighCPU
+        expr: 100 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100 > 85
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Host CPU above 85% for 10 minutes"
+
+      - alert: LowDiskSpace
+        expr: node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"} < 0.15
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Less than 15% disk space left on /"

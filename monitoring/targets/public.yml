@@ -1,0 +1,3 @@
+# Placeholder: overwritten by scripts/render-config.sh using PUBLIC_URL
+- targets: ["http://nginx/health"]
+  labels: {probe: public}

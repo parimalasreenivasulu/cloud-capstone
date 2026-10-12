@@ -1,0 +1,27 @@
+Validation run (sandbox, no Docker/cloud available). Tools: promtool 2.54.1, amtool 0.27.0, nginx 1.24, pytest 8.3.3
+
+$ pytest -q tests
+.....                                                                    [100%]
+5 passed
+
+$ promtool check config prometheus.yml
+  SUCCESS: 1 rule files found
+  SUCCESS: prometheus.yml is valid prometheus config file syntax
+  SUCCESS: 6 rules found
+
+$ promtool test rules tests/alerts_test.yml      # probe_success=0 for >1m => EndpointDown fires
+  SUCCESS
+
+$ amtool check-config monitoring/alertmanager.yml   # rendered by scripts/render-config.sh
+  SUCCESS  (1 receiver)
+
+$ nginx -t   (nginx/default.conf)
+  syntax is ok / test is successful
+
+$ gunicorn app:app ; curl /health /metrics
+  {"status":"ok"}
+  app_http_requests_total{endpoint="/health",method="GET",status="200"} 1.0
+  app_info{env="production",version="abc1234"} 1.0
+
+NOT validated here (needs your cloud account): docker compose up, EC2 launch, GitHub Actions run,
+live public URL, Slack delivery. See README "Submission checklist".

@@ -1,0 +1,85 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build-and-push:
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}/app:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      # Automated environment configuration: every value comes from GitHub secrets/variables
+      - name: Generate .env
+        run: |
+          cat > .env <<ENV
+          APP_ENV=production
+          APP_VERSION=${GITHUB_SHA::7}
+          APP_MESSAGE=${{ vars.APP_MESSAGE || 'Hello from the capstone service' }}
+          ENABLE_DEMO_ENDPOINTS=${{ vars.ENABLE_DEMO_ENDPOINTS || 'false' }}
+          APP_IMAGE=${{ needs.build-and-push.outputs.image }}
+          PUBLIC_URL=${{ secrets.PUBLIC_URL }}
+          GRAFANA_ADMIN_USER=admin
+          GRAFANA_ADMIN_PASSWORD=${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}
+          ENV
+
+      - name: Sync files to server
+        run: |
+          rsync -az -e "ssh -i ~/.ssh/id_deploy" \
+            docker-compose.yml .env nginx monitoring grafana scripts \
+            "$SSH_USER@$SSH_HOST:~/capstone/"
+
+      - name: Pull and restart stack
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" \
+            "echo '$GHCR_TOKEN' | docker login ghcr.io -u '$GHCR_USER' --password-stdin \
+             && cd ~/capstone && bash scripts/render-config.sh \
+             && docker compose pull app \
+             && docker compose up -d --remove-orphans \
+             && docker compose ps"
+
+      - name: Smoke test public endpoint
+        run: bash scripts/smoke-test.sh "${{ secrets.PUBLIC_URL }}"
